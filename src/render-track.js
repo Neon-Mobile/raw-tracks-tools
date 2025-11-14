@@ -1,9 +1,51 @@
 import * as Path from 'node:path';
 import * as fs from 'node:fs';
+import * as childProcess from 'node:child_process';
 
 import { runFfmpegCommandAsync } from './ffexec.js';
 
 const g_tempFilePrefix = 'rawtracks_';
+let g_audioEncoderArgs;
+
+function getAudioEncoderArgs() {
+  if (g_audioEncoderArgs) return g_audioEncoderArgs;
+
+  let hasLibfdk = false;
+  try {
+    const probe = childProcess.spawnSync(
+      'ffmpeg',
+      ['-hide_banner', '-encoders'],
+      { encoding: 'utf-8' }
+    );
+    if (probe.status === 0 && probe.stdout.includes('libfdk_aac')) {
+      hasLibfdk = true;
+    }
+  } catch (err) {
+    console.warn('Unable to query ffmpeg encoders: %s', err?.message || err);
+  }
+
+  if (hasLibfdk) {
+    g_audioEncoderArgs = [
+      '-c:a',
+      'libfdk_aac',
+      '-b:a',
+      '256k',
+      '-profile:a',
+      'aac_low',
+      '-vbr',
+      '0',
+      '-ar',
+      '48000',
+    ];
+  } else {
+    console.warn(
+      'libfdk_aac not available in ffmpeg build; falling back to builtin aac encoder.'
+    );
+    g_audioEncoderArgs = ['-c:a', 'aac', '-b:a', '256k', '-ar', '48000'];
+  }
+
+  return g_audioEncoderArgs;
+}
 
 export async function normalizeAudioTrackToAAC(
   ctxName,
@@ -28,10 +70,7 @@ export async function normalizeAudioTrackToAAC(
     `aresample=async=1,adelay=${Math.floor(
       analysis.startTime * 1000
     )}:all=true`,
-    '-b:a',
-    '256k',
-    '-acodec',
-    'aac',
+    ...getAudioEncoderArgs(),
     outputPath,
   ];
   await runFfmpegCommandAsync(`audio_${ctxName}`, args);
