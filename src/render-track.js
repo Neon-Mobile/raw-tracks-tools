@@ -47,11 +47,12 @@ function getAudioEncoderArgs() {
   return g_audioEncoderArgs;
 }
 
-export async function normalizeAudioTrackToAAC(
+export async function normalizeAudioTrack(
   ctxName,
   analysis,
   inputPath,
-  outputPath
+  outputPath,
+  codec = 'aac'
 ) {
   if (analysis?.isVideo)
     throw new Error('normalizeAudioTrack expects audio input');
@@ -59,6 +60,24 @@ export async function normalizeAudioTrackToAAC(
   if (analysis.startTime == null)
     throw new Error('normalizeAudioTrack expects startTime key');
 
+  if (codec === 'wav') {
+    await normalizeAudioTrackToWav(ctxName, analysis, inputPath, outputPath);
+    return;
+  }
+
+  if (codec !== 'aac') {
+    throw new Error(`Unsupported audio codec "${codec}"`);
+  }
+
+  await normalizeAudioTrackToAAC(ctxName, analysis, inputPath, outputPath);
+}
+
+async function normalizeAudioTrackToAAC(
+  ctxName,
+  analysis,
+  inputPath,
+  outputPath
+) {
   // the audio version of this operation just pads the start with silence.
   // we don't need to do gap rendering like with video.
 
@@ -74,6 +93,30 @@ export async function normalizeAudioTrackToAAC(
     outputPath,
   ];
   await runFfmpegCommandAsync(`audio_${ctxName}`, args);
+}
+
+async function normalizeAudioTrackToWav(
+  ctxName,
+  analysis,
+  inputPath,
+  outputPath
+) {
+  const args = [
+    '-i',
+    inputPath,
+    '-af',
+    `aresample=async=1,adelay=${Math.floor(
+      analysis.startTime * 1000
+    )}:all=true`,
+    '-ar',
+    '48000',
+    '-ac',
+    '1',
+    '-c:a',
+    'pcm_s16le',
+    outputPath,
+  ];
+  await runFfmpegCommandAsync(`audio_${ctxName}_wav`, args);
 }
 
 export async function normalizeVideoTrackToM4V(
