@@ -4,7 +4,7 @@ import * as fs from 'node:fs';
 
 import { analyzeTrack } from './src/analyze-track.js';
 import {
-  normalizeAudioTrackToAAC,
+  normalizeAudioTrack,
   normalizeVideoTrackToM4V,
 } from './src/render-track.js';
 import { runFfmpegCommandAsync } from './src/ffexec.js';
@@ -20,6 +20,9 @@ const args = parseArgs({
       type: 'string',
       short: 'o',
     },
+    'audio-codec': {
+      type: 'string',
+    },
   },
 });
 
@@ -33,6 +36,12 @@ if (args.values.input.length < 1) {
 const outputDir = args.values.output_dir || Path.dirname(args.values.input[0]);
 if (args.values.output_dir) {
   fs.mkdirSync(outputDir, { recursive: true });
+}
+
+const audioCodec = (args.values['audio-codec'] || 'aac').toLowerCase();
+if (!['aac', 'wav'].includes(audioCodec)) {
+  console.error('audio-codec must be either "aac" or "wav"');
+  process.exit(1);
 }
 
 let videoPath;
@@ -63,22 +72,26 @@ for (const inputPath of args.values.input) {
     videoPath = videoOutputPath;
     combinedOutputPath = Path.resolve(outputDir, basename + '_combined.mp4');
   } else {
+    const audioExt = audioCodec === 'wav' ? '.wav' : '.aac';
     const audioOutputPath = Path.resolve(
       outputDir,
-      basename + '_normalized.aac'
+      basename + '_normalized' + audioExt
     );
 
-    await normalizeAudioTrackToAAC(
+    await normalizeAudioTrack(
       basename,
       analysis,
       inputPath,
-      audioOutputPath
+      audioOutputPath,
+      audioCodec
     );
-    audioPath = audioOutputPath;
+    if (audioCodec === 'aac') {
+      audioPath = audioOutputPath;
+    }
   }
 }
 
-if (videoPath && audioPath && combinedOutputPath) {
+if (audioCodec === 'aac' && videoPath && audioPath && combinedOutputPath) {
   const basename = Path.basename(
     combinedOutputPath,
     Path.extname(combinedOutputPath)

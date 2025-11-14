@@ -1,15 +1,58 @@
 import * as Path from 'node:path';
 import * as fs from 'node:fs';
+import * as childProcess from 'node:child_process';
 
 import { runFfmpegCommandAsync } from './ffexec.js';
 
 const g_tempFilePrefix = 'rawtracks_';
+let g_audioEncoderArgs;
 
-export async function normalizeAudioTrackToAAC(
+function getAudioEncoderArgs() {
+  if (g_audioEncoderArgs) return g_audioEncoderArgs;
+
+  let hasLibfdk = false;
+  try {
+    const probe = childProcess.spawnSync(
+      'ffmpeg',
+      ['-hide_banner', '-encoders'],
+      { encoding: 'utf-8' }
+    );
+    if (probe.status === 0 && probe.stdout.includes('libfdk_aac')) {
+      hasLibfdk = true;
+    }
+  } catch (err) {
+    console.warn('Unable to query ffmpeg encoders: %s', err?.message || err);
+  }
+
+  if (hasLibfdk) {
+    g_audioEncoderArgs = [
+      '-c:a',
+      'libfdk_aac',
+      '-b:a',
+      '256k',
+      '-profile:a',
+      'aac_low',
+      '-vbr',
+      '0',
+      '-ar',
+      '48000',
+    ];
+  } else {
+    console.warn(
+      'libfdk_aac not available in ffmpeg build; falling back to builtin aac encoder.'
+    );
+    g_audioEncoderArgs = ['-c:a', 'aac', '-b:a', '256k', '-ar', '48000'];
+  }
+
+  return g_audioEncoderArgs;
+}
+
+export async function normalizeAudioTrack(
   ctxName,
   analysis,
   inputPath,
-  outputPath
+  outputPath,
+  codec = 'aac'
 ) {
   if (analysis?.isVideo)
     throw new Error('normalizeAudioTrack expects audio input');
@@ -17,6 +60,24 @@ export async function normalizeAudioTrackToAAC(
   if (analysis.startTime == null)
     throw new Error('normalizeAudioTrack expects startTime key');
 
+  if (codec === 'wav') {
+    await normalizeAudioTrackToWav(ctxName, analysis, inputPath, outputPath);
+    return;
+  }
+
+  if (codec !== 'aac') {
+    throw new Error(`Unsupported audio codec "${codec}"`);
+  }
+
+  await normalizeAudioTrackToAAC(ctxName, analysis, inputPath, outputPath);
+}
+
+async function normalizeAudioTrackToAAC(
+  ctxName,
+  analysis,
+  inputPath,
+  outputPath
+) {
   // the audio version of this operation just pads the start with silence.
   // we don't need to do gap rendering like with video.
 
@@ -28,13 +89,34 @@ export async function normalizeAudioTrackToAAC(
     `aresample=async=1,adelay=${Math.floor(
       analysis.startTime * 1000
     )}:all=true`,
-    '-b:a',
-    '256k',
-    '-acodec',
-    'aac',
+    ...getAudioEncoderArgs(),
     outputPath,
   ];
   await runFfmpegCommandAsync(`audio_${ctxName}`, args);
+}
+
+async function normalizeAudioTrackToWav(
+  ctxName,
+  analysis,
+  inputPath,
+  outputPath
+) {
+  const args = [
+    '-i',
+    inputPath,
+    '-af',
+    `aresample=async=1,adelay=${Math.floor(
+      analysis.startTime * 1000
+    )}:all=true`,
+    '-ar',
+    '48000',
+    '-ac',
+    '1',
+    '-c:a',
+    'pcm_s16le',
+    outputPath,
+  ];
+  await runFfmpegCommandAsync(`audio_${ctxName}_wav`, args);
 }
 
 export async function normalizeVideoTrackToM4V(
