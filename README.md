@@ -76,6 +76,14 @@ npm run normalize-track -- -i example-cam-video.webm -i example-cam-audio.webm
 
 You can also provide an output path using the -o option.
 
+By default, audio tracks are re-encoded to AAC. Pass `--audio-codec wav` to emit a mono 48 kHz PCM WAV instead. (MP4 muxing is only performed when an AAC track is produced, since MP4 does not accept PCM audio.)
+
+Example WAV-only normalization:
+
+```
+npm run normalize-track -- -i 1763063510722-audio.webm --audio-codec wav
+```
+
 ## gen-manifest
 
 Generates a raw-tracks manifest file by inspecting filenames in a directory containing raw-tracks recordings made on Daily.
