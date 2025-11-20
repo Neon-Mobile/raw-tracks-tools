@@ -29,7 +29,7 @@ function getAudioEncoderArgs() {
       '-c:a',
       'libfdk_aac',
       '-b:a',
-      '256k',
+      '320k',
       '-profile:a',
       'aac_low',
       '-vbr',
@@ -41,7 +41,7 @@ function getAudioEncoderArgs() {
     console.warn(
       'libfdk_aac not available in ffmpeg build; falling back to builtin aac encoder.'
     );
-    g_audioEncoderArgs = ['-c:a', 'aac', '-b:a', '256k', '-ar', '48000'];
+    g_audioEncoderArgs = ['-c:a', 'aac', '-b:a', '320k', '-ar', '48000'];
   }
 
   return g_audioEncoderArgs;
@@ -61,6 +61,7 @@ export async function normalizeAudioTrack(
     throw new Error('normalizeAudioTrack expects startTime key');
 
   if (codec === 'wav') {
+    console.log('Normalizing audio track to WAV format');
     await normalizeAudioTrackToWav(ctxName, analysis, inputPath, outputPath);
     return;
   }
@@ -68,7 +69,7 @@ export async function normalizeAudioTrack(
   if (codec !== 'aac') {
     throw new Error(`Unsupported audio codec "${codec}"`);
   }
-
+  console.log('Normalizing audio track to AAC format');
   await normalizeAudioTrackToAAC(ctxName, analysis, inputPath, outputPath);
 }
 
