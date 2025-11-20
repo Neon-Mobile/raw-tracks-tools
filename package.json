@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.937.0",
+    "dotenv": "^17.2.3",
     "zx": "^8.2.2"
   },
   "scripts": {
@@ -17,5 +18,8 @@
     "normalize-track": "node normalize-track.js",
     "gen-manifest": "npx zx gen-manifest.zx.mjs",
     "composite-tracks": "npx zx composite-tracks.zx.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1"
   }
 }
